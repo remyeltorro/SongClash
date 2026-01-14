@@ -9,6 +9,8 @@ jobs:
   build:
     name: Build Windows Exe
     runs-on: windows-latest
+    permissions:
+      contents: write
     
     steps:
       - name: Checkout code
