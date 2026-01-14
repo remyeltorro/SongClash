@@ -1,0 +1,10 @@
+build
+__pycache__
+dist
+UltimateSongRanker.spec
+*.json
+debug_*
+test_*
+*.csv
+verify_*
+.venv
