@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="app_icon.png" alt="Ultimate Song Ranker Logo" width="150">
+</p>
+
 # Ultimate Song Ranker (RankSongs)
 
 **Ultimate Song Ranker** is a desktop application designed to help music fans definitely rank their favorite artist's discography. Instead of subjectively listing songs, you participate in a series of head-to-head "battles" between two songs. The app uses an **ELO rating system** (similar to chess rankings) to calculate a precise leaderboard based on your choices.
