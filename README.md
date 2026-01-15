@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="app_icon.png" alt="Ultimate Song Ranker Logo" width="150">
+  <img src="app_icon.png" alt="SongClash Logo" width="150">
 </p>
 
-# Ultimate Song Ranker (RankSongs)
+# SongClash
 
-**Ultimate Song Ranker** is a desktop application designed to help music fans definitely rank their favorite artist's discography. Instead of subjectively listing songs, you participate in a series of head-to-head "battles" between two songs. The app uses an **ELO rating system** (similar to chess rankings) to calculate a precise leaderboard based on your choices.
+**SongClash** is a desktop application designed to help music fans definitely rank their favorite artist's discography. Instead of subjectively listing songs, you participate in a series of head-to-head "battles" between two songs. The app uses an **ELO rating system** (similar to chess rankings) to calculate a precise leaderboard based on your choices.
 
 ## Features
 
@@ -23,10 +23,10 @@
 
 ## Installation
 
-**The easiest way to use Ultimate Song Ranker is to download the latest release.**
+**The easiest way to use SongClash is to download the latest release.**
 
 1.  Go to the [Releases](../../releases) page on GitHub.
-2.  Download the latest `UltimateSongRanker.exe`.
+2.  Download the latest `SongClash.exe`.
 3.  Run the executable directly (no installation required).
 
 ### Running from Source (Advanced)
@@ -41,7 +41,7 @@ If you prefer to run the application from Python source code:
 
 ## Usage
 
-Simply double-click `UltimateSongRanker.exe` to launch the app.
+Simply double-click `SongClash.exe` to launch the app.
 
 If running from source:
 ```bash

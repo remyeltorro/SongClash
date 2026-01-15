@@ -758,7 +758,7 @@ class MainWindow(QMainWindow):
         self.session = RankingSession()
         self.current_pair = None
 
-        self.setWindowTitle("Ultimate Song Ranker")
+        self.setWindowTitle("SongClash")
         self.resize(1100, 300)
         self.setStyleSheet("background-color: #2b2b2b; color: #ffffff;")
 

@@ -19,7 +19,7 @@ socket.setdefaulttimeout(30.0)
 def fetch_data(artist_name, reject_types=None):
     # Configure MusicBrainz
     musicbrainzngs.set_useragent(
-        "RankSongsApp", "1.0", "https://github.com/remy1/ranksongs"
+        "SongClashApp", "1.0", "https://github.com/remy1/ranksongs"
     )
     # Be conservative with rate limiting to avoid connection errors
     musicbrainzngs.set_rate_limit(limit_or_interval=1.5, new_requests=1)

@@ -28,7 +28,7 @@ echo Building Executable...
 :: --name: Output filename
 :: Note: Anaconda path might not be needed if installing PyQt6 via pip in venv
 :: set PATH=%PATH%;C:\ProgramData\anaconda3\Library\bin 
-pyinstaller --noconfirm --onefile --windowed --name "UltimateSongRanker" --hidden-import=fetch_data --exclude-module PyQt5 --icon="app.ico" __main__.py
+pyinstaller --noconfirm --onefile --windowed --name "SongClash" --hidden-import=fetch_data --exclude-module PyQt5 --icon="app.ico" __main__.py
 
 echo Build complete! Executable is in the 'dist' folder.
 pause
