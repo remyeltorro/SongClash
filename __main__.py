@@ -1,4 +1,5 @@
 import sys
+import ctypes
 import json
 import random
 import os
@@ -1978,7 +1979,15 @@ if __name__ == "__main__":
         fetch_data.main()
         sys.exit(0)
 
+    # AppUserModelID needed for Windows Taskbar Icon to show correctly
+    myappid = "remyeltorro.songclash.v1"  # arbitrary string
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except Exception:
+        pass
+
     app = QApplication(sys.argv)
+    app.setWindowIcon(QIcon("app.ico"))  # Set Icon
     app.setStyle("Fusion")
 
     # Dark Mode Palette
