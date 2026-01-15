@@ -8,3 +8,4 @@ test_*
 *.csv
 verify_*
 .venv
+app.ico
