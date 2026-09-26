@@ -1,11 +1,19 @@
-build
-__pycache__
-dist
-UltimateSongRanker.spec
-*.json
-debug_*
-test_*
-*.csv
-verify_*
-.venv
-app.ico
+# Build output (build/ also holds the generated app.ico)
+build/
+dist/
+/*.spec
+*.egg-info/
+
+# Python
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# User data and scratch files (root only)
+/*.json
+/*.csv
+/*.tmp
+/debug_*
+/test_*
+/verify_*
