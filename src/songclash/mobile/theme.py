@@ -20,7 +20,7 @@ ORANGE_DIM = "#5e3417"
 GOLD = "#f5c451"
 RED = "#e5534b"
 
-# Usable width of a phone screen in dp (a Moto G7 is 393dp wide), minus margins
+# Usable width of a phone screen in dp (a Moto G54 is about 393dp wide), minus margins
 SCREEN_WIDTH = 369
 
 SIDE_COLORS = {"A": (TEAL, TEAL_DIM), "B": (ORANGE, ORANGE_DIM)}
