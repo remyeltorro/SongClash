@@ -33,9 +33,21 @@ def read_session(path: str | os.PathLike) -> dict[str, Song]:
         return parse_session_data(json.load(f))
 
 
+def dumps_session(songs: Mapping[str, Song]) -> str:
+    """The session file contents, as text."""
+    return json.dumps(songs, indent=2, ensure_ascii=False)
+
+
+def loads_session(text: str | bytes) -> dict[str, Song]:
+    """Parse session file contents. Raises ValueError if it isn't a session."""
+    if isinstance(text, bytes):
+        text = text.decode("utf-8-sig")
+    return parse_session_data(json.loads(text))
+
+
 def write_session(path: str | os.PathLike, songs: Mapping[str, Song]) -> None:
     """Save atomically so a crash mid-write can't corrupt the file."""
     tmp = f"{os.fspath(path)}.tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(songs, f, indent=2, ensure_ascii=False)
+        f.write(dumps_session(songs))
     os.replace(tmp, path)

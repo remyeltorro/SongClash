@@ -1,25 +1,27 @@
 # Architecture
 
-SongClash is a PyQt6 desktop app split into three layers. Dependencies only
-point downwards:
+SongClash has two front ends over the same two lower layers. Dependencies
+only point downwards:
 
 ```
-ui/        PyQt6 widgets, windows, and glue to run services off the GUI thread
+ui/        PyQt6 desktop app: widgets, windows, and glue to run services off the GUI thread
+mobile/    Toga Android app (see ANDROID.md)
   │
   ├──► services/   Remote data (MusicBrainz, iTunes). Plain blocking Python, no Qt
   │
   └──► core/       Songs, Elo, matchmaking, session files. Pure Python, no Qt, no I/O but files
 ```
 
-`core` and `services` never import Qt. That keeps them fast to test and reusable
-(a CLI or web front end could use them as they are).
+`core` and `services` never import Qt or Toga. That keeps them fast to test and
+shared by both front ends. Logic both UIs need (captions, import options, CSV
+text) belongs there, not in `ui/` or `mobile/`.
 
 ## Layout
 
 ```
 src/songclash/
 ├── __init__.py          version, app name, app id
-├── __main__.py          `python -m songclash`
+├── __main__.py          `python -m songclash` (Toga app on Android, PyQt6 elsewhere)
 ├── app.py               QApplication bootstrap, theme, crash dialog
 ├── resources.py         paths to bundled assets
 ├── assets/              app_icon.png
@@ -49,6 +51,7 @@ src/songclash/
     ├── settings.py      AppSettings: typed wrapper over QSettings
     ├── styling.py       helpers to tag widgets for the stylesheet
     └── theme.py         colors, palette and the Qt stylesheet
+└── mobile/              Toga screens for Android (module list in ANDROID.md)
 ```
 
 ## Key flows

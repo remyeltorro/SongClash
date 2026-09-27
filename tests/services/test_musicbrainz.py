@@ -93,3 +93,8 @@ def test_cancel_interrupts_waits():
     cancel.set()
     with pytest.raises(FetchCancelled):
         musicbrainz.MusicBrainzClient(cancel).get("artist", query="x")
+
+
+def test_discography_options():
+    opts = musicbrainz.discography_options(["EP", "Live", "Bootleg", "Nonsense"])
+    assert opts == {"include_types": ["Live"], "include_eps": True, "include_bootlegs": True}

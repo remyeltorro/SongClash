@@ -4,7 +4,7 @@
 
 # SongClash
 
-**SongClash** is a desktop app that helps music fans definitively rank an artist's discography. Instead of agonizing over a list, you settle a series of head-to-head "battles" between two songs. An **Elo rating system** (the one used for chess rankings) turns your choices into a precise leaderboard.
+**SongClash** is a desktop and Android app that helps music fans definitively rank an artist's discography. Instead of agonizing over a list, you settle a series of head-to-head "battles" between two songs. An **Elo rating system** (the one used for chess rankings) turns your choices into a precise leaderboard.
 
 ## Features
 
@@ -26,6 +26,10 @@
 2.  Download the latest `SongClash.exe`.
 3.  Run it directly (no installation required).
 
+### Android
+
+Run `build_android.bat` to build `dist\SongClash.apk`, then copy it to your phone and open it (or `adb install -r dist\SongClash.apk`). See [docs/ANDROID.md](docs/ANDROID.md) for details and how the touch version works.
+
 ### Running from source
 
 1.  Install **Python 3.10+**.
@@ -34,7 +38,7 @@
 Or manually:
 
 ```bash
-pip install -e .
+pip install -e ".[desktop]"
 python -m songclash
 ```
 
@@ -59,7 +63,7 @@ Standard Elo formula with a K-factor of 32. Every song starts at 1200. Beating a
 ## Development
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[desktop,dev]"
 python -m pytest
 ruff check . && ruff format --check .
 ```
@@ -70,7 +74,8 @@ The code lives in `src/songclash/`, split into three layers:
 | --- | --- |
 | `core/` | Songs, Elo scoring, matchmaking, session files (pure Python, no Qt) |
 | `services/` | MusicBrainz and iTunes lookups (no Qt) |
-| `ui/` | PyQt6 windows, pages, widgets and theme |
+| `ui/` | PyQt6 windows, pages, widgets and theme (desktop) |
+| `mobile/` | Toga screens for the Android app |
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit together, and [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.
 

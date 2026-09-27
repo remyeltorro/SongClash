@@ -1,8 +1,8 @@
 import csv
 
-from songclash.core.export import CSV_HEADER, write_ranking_csv
+from songclash.core.export import CSV_HEADER, ranking_csv, write_ranking_csv
 from songclash.core.models import normalize_song
-from songclash.core.storage import read_session, write_session
+from songclash.core.storage import dumps_session, loads_session, read_session, write_session
 
 
 def test_write_is_atomic_and_roundtrips(tmp_path):
@@ -25,3 +25,13 @@ def test_csv_export(tmp_path):
     assert rows[0] == CSV_HEADER
     assert rows[1] == ["Best", "A", "X", "2001", "1", "1261"]
     assert rows[2][4] == "2"
+
+
+def test_session_text_roundtrip_accepts_bom():
+    songs = {"A — x": normalize_song("x", {"artist": "A"})}
+    assert loads_session(("﻿" + dumps_session(songs)).encode("utf-8")) == songs
+
+
+def test_ranking_csv_text():
+    text = ranking_csv([normalize_song("a, b", {"artist": "A"})])
+    assert text.splitlines()[1].startswith('"a, b",A,')

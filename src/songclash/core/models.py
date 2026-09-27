@@ -40,3 +40,11 @@ def normalize_song(title: str, data: Any) -> Song:
     song["matches"] = int(song.get("matches", 0))
     song.setdefault("cover_url", None)
     return song  # type: ignore[return-value]
+
+
+def song_caption(song: Song) -> str:
+    """ "Artist · Album (Year)", without repeating a year already in the album."""
+    album = song["album"]
+    if song["year"] not in album:
+        album = f"{album} ({song['year']})"
+    return f"{song['artist']} · {album}"

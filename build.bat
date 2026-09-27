@@ -11,7 +11,7 @@ set PY=.venv\Scripts\python.exe
 
 echo Installing build requirements...
 %PY% -m pip install --upgrade pip || goto :error
-%PY% -m pip install -e ".[build]" || goto :error
+%PY% -m pip install -e ".[desktop,build]" || goto :error
 
 echo Cleaning previous builds...
 if exist "build" rmdir /s /q build

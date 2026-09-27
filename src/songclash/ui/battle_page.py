@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from songclash.core.models import song_caption
 from songclash.core.session import ALL_ALBUMS
 from songclash.ui.styling import big_button, repolish, spaced, styled
 from songclash.ui.widgets import ClickableLabel, SongCard, VsEmblem
@@ -25,14 +26,6 @@ CORNER_NAMES = {"A": "TEAL CORNER", "B": "ORANGE CORNER"}
 KEY_HINTS = {"A": "←", "B": "→"}
 PLAY_TEXT = "▶   Play Preview"
 STOP_TEXT = "■   Stop Preview"
-
-
-def song_caption(song):
-    """ "Artist · Album (Year)", without repeating a year already in the album."""
-    album = song["album"]
-    if song["year"] not in album:
-        album = f"{album} ({song['year']})"
-    return f"{song['artist']} · {album}"
 
 
 class BattlePanel(QWidget):

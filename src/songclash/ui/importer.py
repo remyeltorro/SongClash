@@ -4,7 +4,7 @@ from PyQt6.QtCore import QObject, Qt, pyqtSignal
 from PyQt6.QtWidgets import QDialog, QInputDialog, QMessageBox, QProgressDialog
 
 from songclash.services import musicbrainz
-from songclash.ui.dialogs import EXTRA_TYPES, ArtistPickerDialog, ImportOptionsDialog
+from songclash.ui.dialogs import ArtistPickerDialog, ImportOptionsDialog
 from songclash.ui.tasks import Task
 
 
@@ -64,9 +64,7 @@ class ArtistImporter(QObject):
             musicbrainz.fetch_discography,
             artist["id"],
             artist["name"],
-            include_types=[t for t in checked if t not in EXTRA_TYPES],
-            include_eps="EP" in checked,
-            include_bootlegs="Bootleg" in checked,
+            **musicbrainz.discography_options(checked),
         ).with_progress()
         dlg = self._progress_dialog(f"Fetching songs for {artist['name']}...", task)
 

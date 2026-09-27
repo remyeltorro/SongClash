@@ -36,6 +36,22 @@ SECONDARY_TYPES = [
     "Mixtape/Street",
 ]
 
+# Import options that are not secondary types: they widen the primary type or
+# the release status.
+EXTRA_TYPES = ["EP", "Bootleg"]
+IMPORT_OPTIONS = EXTRA_TYPES + SECONDARY_TYPES
+
+
+def discography_options(checked: Iterable[str]) -> dict:
+    """Turn checked IMPORT_OPTIONS into ``fetch_discography`` keyword arguments."""
+    checked = set(checked)
+    return {
+        "include_types": [t for t in SECONDARY_TYPES if t in checked],
+        "include_eps": "EP" in checked,
+        "include_bootlegs": "Bootleg" in checked,
+    }
+
+
 # MusicBrainz "special purpose" track titles that are not real songs.
 _JUNK_TITLES = {"[silence]", "[data track]", "[untitled]", "[unknown]"}
 

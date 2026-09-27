@@ -7,7 +7,7 @@ if not exist ".venv\Scripts\python.exe" (
 )
 .venv\Scripts\python.exe -c "import songclash" 2>nul || (
     echo Installing SongClash and its dependencies...
-    .venv\Scripts\python.exe -m pip install -e . || goto :error
+    .venv\Scripts\python.exe -m pip install -e ".[desktop]" || goto :error
 )
 .venv\Scripts\python.exe -m songclash %* || goto :error
 exit /b 0

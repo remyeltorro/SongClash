@@ -14,10 +14,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from songclash.services.musicbrainz import SECONDARY_TYPES
-
-# Options handled specially by the importer (not MusicBrainz secondary types)
-EXTRA_TYPES = ["EP", "Bootleg"]
+from songclash.services.musicbrainz import IMPORT_OPTIONS
 
 
 def _ok_cancel(dialog):
@@ -40,7 +37,7 @@ class ImportOptionsDialog(QDialog):
         layout.addWidget(lbl)
 
         self.checkboxes = {}
-        for name in EXTRA_TYPES + SECONDARY_TYPES:
+        for name in IMPORT_OPTIONS:
             cb = QCheckBox(name)
             cb.setChecked(name in checked)
             self.checkboxes[name] = cb
