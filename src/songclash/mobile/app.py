@@ -59,7 +59,7 @@ class SongClashMobile(toga.App):
         }
 
         self.nav = {
-            name: toga.Button(
+            name: theme.Button(
                 label,
                 on_press=lambda w, name=name, **kw: self.show(name),
                 style=theme.button(color=theme.SURFACE, font_size=12, height=44, flex=1),
@@ -106,7 +106,7 @@ class SongClashMobile(toga.App):
     def message(self, text):
         self._message_token += 1
         token = self._message_token
-        self.status.text = text
+        self.status.text = theme.wrap(text, size=12)
 
         async def clear():
             await asyncio.sleep(MESSAGE_SECONDS)

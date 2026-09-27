@@ -24,25 +24,25 @@ class SessionsScreen:
                 toga.Box(
                     children=[
                         self.name,
-                        toga.Button("Rename", on_press=self.rename, style=theme.button(width=100)),
+                        theme.Button("Rename", on_press=self.rename, style=theme.button(width=100)),
                     ],
                     style=theme.row(gap=8),
                 ),
                 self.current,
                 toga.Box(
                     children=[
-                        toga.Button("New Session", on_press=self.new_session, style=theme.button(flex=1)),
-                        toga.Button("Export File", on_press=self.export, style=theme.button(flex=1)),
+                        theme.Button("New Session", on_press=self.new_session, style=theme.button(flex=1)),
+                        theme.Button("Export File", on_press=self.export, style=theme.button(flex=1)),
                     ],
                     style=theme.row(gap=8),
                 ),
-                toga.Button(
+                theme.Button(
                     "Import Session File…",
                     on_press=self.import_file,
                     style=theme.button(),
                 ),
                 toga.Label(
-                    "Session files are compatible with the SongClash desktop app.",
+                    theme.wrap("Session files are compatible with the SongClash desktop app.", size=12),
                     style=theme.text(12, theme.MUTED),
                 ),
                 toga.Label("Saved Sessions", style=theme.heading(18, margin_top=10)),
@@ -65,11 +65,12 @@ class SessionsScreen:
         for info in sessions:
             is_current = s.current_filename is not None and info.path.samefile(s.current_filename)
             when = time.strftime("%d %b %Y, %H:%M", time.localtime(info.modified))
-            label = f"{'● ' if is_current else ''}{info.name}\n{info.songs} songs · {when}"
+            name = theme.wrap(f"{'● ' if is_current else ''}{info.name}", 270, 14)
+            label = f"{name}\n{info.songs} songs · {when}"
             self.rows.add(
                 toga.Box(
                     children=[
-                        toga.Button(
+                        theme.Button(
                             label,
                             on_press=functools.partial(self._open, info.path),
                             style=theme.button(
@@ -80,7 +81,7 @@ class SessionsScreen:
                                 flex=1,
                             ),
                         ),
-                        toga.Button(
+                        theme.Button(
                             "✕",
                             on_press=functools.partial(self._delete, info),
                             style=theme.button(

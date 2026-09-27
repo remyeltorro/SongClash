@@ -124,6 +124,19 @@ class AndroidPlayer:
         return self.player.getCurrentPosition() / duration if duration > 0 else 0.0
 
 
+def tune_button(button: toga.Button):
+    """Android buttons default to ALL CAPS and an 88dp minimum width, which
+    shouts song titles and pushes a row of five buttons off the screen."""
+    if not IS_ANDROID:
+        return
+    native = button._impl.native
+    native.setAllCaps(False)
+    native.setMinWidth(0)
+    native.setMinimumWidth(0)
+    pad = int(6 * native.getResources().getDisplayMetrics().density)
+    native.setPadding(pad, native.getPaddingTop(), pad, native.getPaddingBottom())
+
+
 def make_player():
     return AndroidPlayer() if IS_ANDROID else NullPlayer()
 

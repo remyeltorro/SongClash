@@ -79,14 +79,21 @@ class Device:
         return found
 
     def find(self, text, timeout=15, exact=False) -> Node:
-        """First node whose text contains ``text`` (case-insensitive)."""
+        """A node whose text contains ``text`` (case-insensitive), buttons first.
+
+        Buttons win so that "Add an Artist" taps the button, not a paragraph
+        that happens to contain the same words.
+        """
         deadline = time.monotonic() + timeout
         want = text.casefold()
         while True:
-            for n in self.nodes():
-                have = n.text.casefold()
-                if (have == want) if exact else (want in have):
-                    return n
+            matches = [
+                n
+                for n in self.nodes()
+                if ((n.text.casefold() == want) if exact else (want in n.text.casefold()))
+            ]
+            if matches:
+                return next((n for n in matches if n.cls.endswith("Button")), matches[0])
             if time.monotonic() > deadline:
                 raise AssertionError(f"'{text}' not on screen after {timeout}s")
             time.sleep(1)

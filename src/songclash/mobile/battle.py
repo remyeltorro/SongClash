@@ -30,13 +30,13 @@ class SongCard:
     def __init__(self, side, on_vote, on_preview):
         color, dim = theme.SIDE_COLORS[side]
         self.cover = toga.ImageView(style=Pack(width=COVER_SIZE, height=COVER_SIZE, background_color=dim))
-        self.title = toga.Button(
+        self.title = theme.Button(
             "-",
             on_press=lambda w, **kw: on_vote(side),
-            style=theme.button(color=dim, text_color=theme.TEXT, height=76, font_size=17),
+            style=theme.button(color=dim, text_color=theme.TEXT, height=84, font_size=17),
         )
         self.caption = toga.Label("", style=theme.text(12, theme.MUTED))
-        self.audio = toga.Button(
+        self.audio = theme.Button(
             AUDIO_TEXT[IDLE],
             on_press=lambda w, **kw: on_preview(side),
             style=theme.button(color=theme.SURFACE_HI, text_color=color, height=44),
@@ -57,8 +57,9 @@ class SongCard:
         )
 
     def show(self, song, covers):
-        self.title.text = song["title"]
-        self.caption.text = song_caption(song)
+        # Card width minus cover, gaps and button padding
+        self.title.text = theme.wrap(song["title"], 190, 17)
+        self.caption.text = theme.wrap(song_caption(song), 223, 12)
         covers.show(self.cover, song.get("cover_url"))
 
     def clear(self):
@@ -84,10 +85,10 @@ class BattleScreen:
         self._progress_task = None
 
         self.album = toga.Selection(items=[ALL_ALBUMS], on_change=self._on_album_changed, style=Pack(flex=1))
-        self.btn_undo = toga.Button(
+        self.btn_undo = theme.Button(
             "↶ Undo", on_press=lambda w, **kw: controller.undo(), style=theme.button(flex=1)
         )
-        self.btn_skip = toga.Button(
+        self.btn_skip = theme.Button(
             "Skip ↷", on_press=lambda w, **kw: controller.skip(), style=theme.button(flex=1)
         )
         vs = toga.Label("VS", style=theme.heading(22, text_align=CENTER, width=56))
@@ -110,15 +111,18 @@ class BattleScreen:
             children=[
                 toga.Label("SongClash", style=theme.heading(30, text_align=CENTER)),
                 toga.Label(
-                    "Rank an artist's songs through head-to-head battles.\nAdd an artist to get started.",
+                    theme.wrap(
+                        "Rank an artist's songs through head-to-head battles.\nAdd an artist to get started.",
+                        size=15,
+                    ),
                     style=theme.text(15, theme.MUTED, text_align=CENTER),
                 ),
-                toga.Button(
+                theme.Button(
                     "＋  Add an Artist",
                     on_press=lambda w, **kw: controller.show("import"),
                     style=theme.button(color=theme.GOLD, text_color=theme.BG, height=56),
                 ),
-                toga.Button(
+                theme.Button(
                     "Open a Saved Session",
                     on_press=lambda w, **kw: controller.show("sessions"),
                     style=theme.button(),

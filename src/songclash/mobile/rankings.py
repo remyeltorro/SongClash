@@ -33,8 +33,8 @@ class SongsScreen:
         )
         buttons = toga.Box(
             children=[
-                toga.Button("＋ Add Song", on_press=self.add_song, style=theme.button(flex=1)),
-                toga.Button(
+                theme.Button("＋ Add Song", on_press=self.add_song, style=theme.button(flex=1)),
+                theme.Button(
                     "Export CSV",
                     on_press=self.export_csv,
                     style=theme.button(color=theme.GOLD, text_color=theme.BG, flex=1),
@@ -46,7 +46,7 @@ class SongsScreen:
 
     def refresh(self):
         s = self.c.session
-        self.title.text = f"♛ Leaderboard · {s.active_filter}"
+        self.title.text = theme.wrap(f"♛ Leaderboard · {s.active_filter}", size=18)
         rows = []
         for rank, key in enumerate(s.ranked_keys(), start=1):
             song = s.songs[key]
@@ -114,8 +114,11 @@ class AlbumsScreen:
             color = theme.GOLD if rank <= len(theme.MEDALS) else theme.TEXT
             info = toga.Box(
                 children=[
-                    toga.Label(a["album"], style=theme.text(15, color)),
-                    toga.Label(f"{a['artist']} · {a['count']} songs", style=theme.text(12, theme.MUTED)),
+                    toga.Label(theme.wrap(a["album"], 180, 15), style=theme.text(15, color)),
+                    toga.Label(
+                        theme.wrap(f"{a['artist']} · {a['count']} songs", 180, 12),
+                        style=theme.text(12, theme.MUTED),
+                    ),
                 ],
                 style=Pack(direction=COLUMN, flex=1),
             )
@@ -142,8 +145,8 @@ def _field(label, widget):
 def _form_buttons(ok_text, on_ok, on_cancel):
     return toga.Box(
         children=[
-            toga.Button("Cancel", on_press=on_cancel, style=theme.button(flex=1)),
-            toga.Button(
+            theme.Button("Cancel", on_press=on_cancel, style=theme.button(flex=1)),
+            theme.Button(
                 ok_text, on_press=on_ok, style=theme.button(color=theme.GOLD, text_color=theme.BG, flex=1)
             ),
         ],
@@ -210,7 +213,11 @@ class MergeForm:
             children=[
                 toga.Label("Merge Songs", style=theme.heading(18)),
                 toga.Label(
-                    f"Combine '{song['title']}' with another song. Scores are averaged and votes added up.",
+                    theme.wrap(
+                        f"Combine '{song['title']}' with another song. "
+                        "Scores are averaged and votes added up.",
+                        size=13,
+                    ),
                     style=theme.text(13, theme.MUTED),
                 ),
                 _field("Merge with", self.other),
