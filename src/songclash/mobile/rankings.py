@@ -52,13 +52,40 @@ def scroller(content):
     )
 
 
+# Without a native list (desktop preview), rows are Toga widgets built in
+# pages: a whole discography at once takes far too long.
+PAGE_SIZE = 50
+
+
+def column_of(children, gap=6):
+    """A column built with its children up front: one layout pass, not one per child."""
+    return toga.Box(children=children, style=Pack(direction=COLUMN, gap=gap))
+
+
 class SongsScreen:
-    """Ranked songs for the current album filter. Tap a song to edit it."""
+    """Ranked songs for the current album filter. Tap a song to edit it.
+
+    On Android the rows live in a recycling native list (``device.NativeList``),
+    which stays instant for thousands of songs.
+    """
 
     def __init__(self, controller):
         self.c = controller
+        self.keys: list[str] = []
+        self.shown = 0
         self.header = toga.Box(style=Pack(direction=COLUMN))
-        self.rows = toga.Box(style=Pack(direction=COLUMN, gap=6))
+        self.rows = column_of([])
+        self.more = theme.pill("", self.show_more, "ghost", 44)
+        if device.IS_ANDROID:
+            self.list = toga.Box(style=Pack(flex=1))
+            self.native = device.NativeList(
+                self.list,
+                self.open_song,
+                {"text": theme.TEXT, "muted": theme.MUTED, "ripple": theme.RIPPLE},
+            )
+        else:
+            self.list = scroller(self.rows)
+            self.native = None
         actions = toga.Box(
             children=[
                 theme.pill("＋  Add Song", self.add_song, "teal", 42, flex=1),
@@ -66,15 +93,55 @@ class SongsScreen:
             ],
             style=theme.row(gap=10),
         )
-        self.box = toga.Box(children=[self.header, actions, scroller(self.rows)], style=theme.page())
+        self.box = toga.Box(children=[self.header, actions, self.list], style=theme.page())
 
     def refresh(self):
         s = self.c.session
         self.header.clear()
         self.header.add(header("♛  Leaderboard", f"{s.active_filter} · tap a song to merge or delete it"))
-        self.rows.clear()
-        for rank, key in enumerate(s.ranked_keys(), start=1):
-            self.rows.add(self._row(rank, key, s.songs[key]))
+        self.keys = s.ranked_keys()
+        if self.native:
+            self.native.set_rows([self._row_data(rank, s.songs[k]) for rank, k in enumerate(self.keys, 1)])
+            return
+        self.shown = 0
+        # Fill a detached box, then swap it in: laid out once, off screen
+        self.rows = column_of([])
+        self.show_more()
+        self.list.content = self.rows
+
+    def show_more(self, widget=None, **kw):
+        songs = self.c.session.songs
+        end = min(self.shown + PAGE_SIZE, len(self.keys))
+        batch = [
+            self._row(rank, key, songs[key])
+            for rank, key in enumerate(self.keys[self.shown : end], self.shown + 1)
+        ]
+        if self.more in self.rows.children:
+            self.rows.remove(self.more)
+        self.rows.add(column_of(batch))
+        self.shown = end
+        if left := len(self.keys) - end:
+            self.more.text = f"Show {min(PAGE_SIZE, left)} more  ·  {left} left"
+            self.rows.add(self.more)
+
+    def _row_data(self, rank, song):
+        top = rank <= len(theme.MEDALS)
+        return {
+            "rank": rank_label(rank),
+            "rank_color": rank_color(rank, theme.MUTED),
+            "title": song["title"],
+            "title_color": rank_color(rank),
+            "bold": top,
+            "subtitle": song["album"],
+            "score": str(round(song["score"])),
+            "votes": f"{song['matches']} votes",
+            "fill": theme.SURFACE if rank % 2 else theme.SURFACE_HI,
+            "stroke": theme.MEDALS[rank - 1] if top else None,
+        }
+
+    def open_song(self, position):
+        if position < len(self.keys):
+            self.c.show_screen(SongSheet(self.c, self.keys[position], position + 1))
 
     def _row(self, rank, key, song):
         color = rank_color(rank)
@@ -203,9 +270,9 @@ class AlbumsScreen:
         )
 
     def refresh(self):
+        rows = [self._row(rank, a) for rank, a in enumerate(self.c.session.album_stats(), start=1)]
         self.rows.clear()
-        for rank, a in enumerate(self.c.session.album_stats(), start=1):
-            self.rows.add(self._row(rank, a))
+        self.rows.add(column_of(rows))
 
     def _row(self, rank, a):
         cover = toga.ImageView(style=Pack(width=60, height=60))

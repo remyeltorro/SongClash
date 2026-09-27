@@ -305,6 +305,152 @@ def toast(app: toga.App, text: str) -> bool:
     return True
 
 
+class NativeList:
+    """A recycling Android ListView inside a Toga Box, for long leaderboards.
+
+    Toga widgets cost dozens of Java calls each, so a Box per row takes
+    seconds for a few hundred songs and freezes the app. A ListView only
+    builds the rows on screen and reuses them while scrolling.
+
+    Each row is a dict: ``rank``, ``rank_color``, ``title``, ``title_color``,
+    ``bold``, ``subtitle``, ``score``, ``votes``, ``fill`` and ``stroke``
+    (colors as "#rrggbb", stroke may be None).
+    """
+
+    def __init__(self, box: toga.Box, on_select: Callable[[int], None], colors: dict[str, str]):
+        from android.graphics import Color, Typeface
+        from android.graphics.drawable import ColorDrawable
+        from android.util import TypedValue
+        from android.view import Gravity, View, ViewGroup
+        from android.widget import AdapterView, LinearLayout, ListAdapter, ListView, RelativeLayout, TextView
+        from java import dynamic_proxy
+
+        self.rows: list[dict] = []
+        self.colors = colors
+        activity = box._impl._native_activity
+        dp = lambda v: _dp(box._impl.native, v)  # noqa: E731
+        owner = self
+
+        def text_view(size, color, bold=False, align_end=False):
+            tv = TextView(activity)
+            tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
+            tv.setTextColor(_color(color))
+            if bold:
+                tv.setTypeface(Typeface.DEFAULT_BOLD)
+            if align_end:
+                tv.setGravity(Gravity.END)
+            return tv
+
+        def build_row():
+            row = LinearLayout(activity)
+            row.setOrientation(LinearLayout.HORIZONTAL)
+            row.setGravity(Gravity.CENTER_VERTICAL)
+            row.setPadding(dp(14), dp(12), dp(14), dp(12))
+            wrap = ViewGroup.LayoutParams.WRAP_CONTENT
+            rank = text_view(15, colors["muted"], bold=True)
+            rank.setMinWidth(dp(52))
+            info = LinearLayout(activity)
+            info.setOrientation(LinearLayout.VERTICAL)
+            info.addView(text_view(16, colors["text"]))
+            info.addView(text_view(12, colors["muted"]))
+            score = LinearLayout(activity)
+            score.setOrientation(LinearLayout.VERTICAL)
+            score.setGravity(Gravity.END)
+            score.addView(text_view(16, colors["text"], bold=True, align_end=True))
+            score.addView(text_view(11, colors["muted"], align_end=True))
+            row.addView(rank, LinearLayout.LayoutParams(wrap, wrap))
+            row.addView(info, LinearLayout.LayoutParams(0, wrap, 1.0))  # takes the free width
+            row.addView(score, LinearLayout.LayoutParams(wrap, wrap))
+            return row
+
+        def bind(row, data):
+            rank, info, score = row.getChildAt(0), row.getChildAt(1), row.getChildAt(2)
+            rank.setText(data["rank"])
+            rank.setTextColor(_color(data["rank_color"]))
+            title = info.getChildAt(0)
+            title.setText(data["title"])
+            title.setTextColor(_color(data["title_color"]))
+            title.setTypeface(Typeface.DEFAULT_BOLD if data["bold"] else Typeface.DEFAULT)
+            info.getChildAt(1).setText(data["subtitle"])
+            score.getChildAt(0).setText(data["score"])
+            score.getChildAt(1).setText(data["votes"])
+            _set_shape(row, data["fill"], 12, data["stroke"], 1, colors["ripple"])
+
+        class Adapter(dynamic_proxy(ListAdapter)):
+            def getCount(self):
+                return len(owner.rows)
+
+            def getItem(self, position):
+                return None
+
+            def getItemId(self, position):
+                return position
+
+            def hasStableIds(self):
+                return False
+
+            def getView(self, position, convert_view, parent):
+                row = convert_view if convert_view is not None else build_row()
+                bind(row, owner.rows[position])
+                return row
+
+            def getItemViewType(self, position):
+                return 0
+
+            def getViewTypeCount(self):
+                return 1
+
+            def isEmpty(self):
+                return not owner.rows
+
+            def areAllItemsEnabled(self):
+                return True
+
+            def isEnabled(self, position):
+                return True
+
+            def registerDataSetObserver(self, observer):
+                pass
+
+            def unregisterDataSetObserver(self, observer):
+                pass
+
+            def getAutofillOptions(self):
+                return None
+
+        class Click(dynamic_proxy(AdapterView.OnItemClickListener)):
+            def onItemClick(self, parent, view, position, row_id):
+                on_select(position)
+
+        self._adapter_class = Adapter
+        self.view = ListView(activity)
+        self.view.setDivider(ColorDrawable(Color.TRANSPARENT))
+        self.view.setDividerHeight(dp(6))
+        self.view.setSelector(ColorDrawable(Color.TRANSPARENT))
+        self.view.setOverScrollMode(View.OVER_SCROLL_NEVER)
+        self.view.setOnItemClickListener(Click())
+        match = RelativeLayout.LayoutParams.MATCH_PARENT
+        box._impl.native.addView(self.view, RelativeLayout.LayoutParams(match, match))
+
+    def set_rows(self, rows: list[dict]):
+        self.rows = rows
+        # A fresh adapter makes the ListView reload everything and scroll to the top
+        self.view.setAdapter(self._adapter_class())
+
+
+def _set_shape(native, fill, radius, stroke, stroke_width, ripple):
+    """``shape()`` for a raw Android view (used by NativeList rows)."""
+    from android.content.res import ColorStateList
+    from android.graphics.drawable import GradientDrawable, RippleDrawable
+
+    d = GradientDrawable()
+    d.setColor(_color(fill) if fill else 0)
+    d.setCornerRadius(_dp(native, radius))
+    if stroke:
+        d.setStroke(_dp(native, stroke_width), _color(stroke))
+    native.setBackground(RippleDrawable(ColorStateList.valueOf(_color(ripple)), d, None) if ripple else d)
+
+
 def style_window(app: toga.App, bar: str, subtitle: str | None = None) -> bool:
     """Color the action bar and system bars to match the app."""
     if not IS_ANDROID:
