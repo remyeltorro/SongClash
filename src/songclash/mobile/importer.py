@@ -130,13 +130,14 @@ class ImportScreen:
                 if details
                 else []
             ),
-            toga.Label(theme.wrap("Studio albums are always included. Also include:"), style=theme.text()),
-            *switches.values(),
+            # Above the switches, so it's visible without scrolling
             theme.Button(
                 "Import Songs",
                 on_press=start,
                 style=theme.button(color=theme.GOLD, text_color=theme.BG, height=56),
             ),
+            toga.Label(theme.wrap("Studio albums are always included. Also include:"), style=theme.text()),
+            *switches.values(),
         )
 
     # ---------- Step 4: fetch ----------

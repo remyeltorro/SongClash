@@ -68,5 +68,5 @@ def wrap(text: str, width: float = SCREEN_WIDTH, size: float = 14) -> str:
     Toga labels and buttons don't wrap on Android: they ask for the width of
     the whole text and overflow the screen.
     """
-    chars = max(8, int(width / (0.55 * size)))
+    chars = max(8, int(width / (0.62 * size)))
     return "\n".join(textwrap.fill(line, chars) for line in str(text).split("\n"))
