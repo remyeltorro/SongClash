@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from html import escape
+
 import toga
 from toga.style import Pack
 from toga.style.pack import BOLD, COLUMN, RIGHT
@@ -81,7 +83,12 @@ class SongsScreen:
             self.native = device.NativeList(
                 self.list,
                 self.open_song,
-                {"text": theme.TEXT, "muted": theme.MUTED, "ripple": theme.RIPPLE},
+                {
+                    "odd": (theme.SURFACE, None),
+                    "even": (theme.SURFACE_HI, None),
+                    **{f"medal{i}": (theme.SURFACE, color) for i, color in enumerate(theme.MEDALS)},
+                },
+                theme.RIPPLE,
             )
         else:
             self.list = scroller(self.rows)
@@ -125,18 +132,19 @@ class SongsScreen:
             self.rows.add(self.more)
 
     def _row_data(self, rank, song):
+        """A NativeList row: the same look as ``_row``, as three HTML snippets."""
         top = rank <= len(theme.MEDALS)
+        title = escape(song["title"])
+        if top:
+            title = f"<b>{title}</b>"
+        muted = theme.MUTED
         return {
-            "rank": rank_label(rank),
-            "rank_color": rank_color(rank, theme.MUTED),
-            "title": song["title"],
-            "title_color": rank_color(rank),
-            "bold": top,
-            "subtitle": song["album"],
-            "score": str(round(song["score"])),
-            "votes": f"{song['matches']} votes",
-            "fill": theme.SURFACE if rank % 2 else theme.SURFACE_HI,
-            "stroke": theme.MEDALS[rank - 1] if top else None,
+            "kind": f"medal{rank - 1}" if top else ("odd" if rank % 2 else "even"),
+            "rank": f'<b><font color="{rank_color(rank, muted)}">{rank_label(rank)}</font></b>',
+            "info": f'<font color="{rank_color(rank)}">{title}</font><br>'
+            f'<small><font color="{muted}">{escape(song["album"])}</font></small>',
+            "score": f'<b><font color="{theme.TEXT}">{round(song["score"])}</font></b><br>'
+            f'<small><font color="{muted}">{song["matches"]} votes</font></small>',
         }
 
     def open_song(self, position):

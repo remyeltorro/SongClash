@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -138,10 +139,17 @@ class AndroidPlayer:
 # returns False on other platforms so callers can fall back to Pack styles.
 
 
+_density: float | None = None
+
+
 def _dp(native, value: float) -> int:
-    return int(value * native.getResources().getDisplayMetrics().density + 0.5)
+    global _density
+    if _density is None:
+        _density = native.getResources().getDisplayMetrics().density
+    return int(value * _density + 0.5)
 
 
+@functools.cache
 def _color(value: str) -> int:
     from android.graphics import Color
 
@@ -309,72 +317,66 @@ class NativeList:
     """A recycling Android ListView inside a Toga Box, for long leaderboards.
 
     Toga widgets cost dozens of Java calls each, so a Box per row takes
-    seconds for a few hundred songs and freezes the app. A ListView only
-    builds the rows on screen and reuses them while scrolling.
+    seconds for a few hundred songs. A ListView only builds the rows on
+    screen and reuses them while scrolling. Every Python->Java call is
+    slow on a phone, so binding a row is kept to a handful: each text view
+    gets its colors and sizes from one ``Html.fromHtml`` string, and a
+    row's rounded background is only rebuilt when its kind changes.
 
-    Each row is a dict: ``rank``, ``rank_color``, ``title``, ``title_color``,
-    ``bold``, ``subtitle``, ``score``, ``votes``, ``fill`` and ``stroke``
-    (colors as "#rrggbb", stroke may be None).
+    ``backgrounds`` maps a row kind to ``(fill, stroke)`` (stroke may be
+    None). Each row is a dict with ``kind`` and three HTML strings:
+    ``rank``, ``info`` and ``score``.
     """
 
-    def __init__(self, box: toga.Box, on_select: Callable[[int], None], colors: dict[str, str]):
-        from android.graphics import Color, Typeface
-        from android.graphics.drawable import ColorDrawable
+    def __init__(self, box: toga.Box, on_select: Callable[[int], None], backgrounds: dict, ripple: str):
+        from android.content.res import ColorStateList
+        from android.graphics import Color
+        from android.graphics.drawable import ColorDrawable, GradientDrawable, RippleDrawable
+        from android.text import Html
         from android.util import TypedValue
         from android.view import Gravity, View, ViewGroup
         from android.widget import AdapterView, LinearLayout, ListAdapter, ListView, RelativeLayout, TextView
         from java import dynamic_proxy
 
         self.rows: list[dict] = []
-        self.colors = colors
         activity = box._impl._native_activity
-        dp = lambda v: _dp(box._impl.native, v)  # noqa: E731
+        native = box._impl.native
         owner = self
+        holders = {}  # row view hashCode -> [rank, info, score, kind]
+        ripple_color = ColorStateList.valueOf(_color(ripple))
+        radius, stroke_px = _dp(native, 12), _dp(native, 1)
+        html_mode = Html.FROM_HTML_MODE_LEGACY
+        wrap = ViewGroup.LayoutParams.WRAP_CONTENT
 
-        def text_view(size, color, bold=False, align_end=False):
+        def background(kind):
+            fill, stroke = backgrounds[kind]
+            shape = GradientDrawable()
+            shape.setColor(_color(fill))
+            shape.setCornerRadius(radius)
+            if stroke:
+                shape.setStroke(stroke_px, _color(stroke))
+            return RippleDrawable(ripple_color, shape, None)
+
+        def text_view(size, gravity):
             tv = TextView(activity)
             tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
-            tv.setTextColor(_color(color))
-            if bold:
-                tv.setTypeface(Typeface.DEFAULT_BOLD)
-            if align_end:
-                tv.setGravity(Gravity.END)
+            tv.setGravity(gravity)
             return tv
 
         def build_row():
             row = LinearLayout(activity)
             row.setOrientation(LinearLayout.HORIZONTAL)
             row.setGravity(Gravity.CENTER_VERTICAL)
-            row.setPadding(dp(14), dp(12), dp(14), dp(12))
-            wrap = ViewGroup.LayoutParams.WRAP_CONTENT
-            rank = text_view(15, colors["muted"], bold=True)
-            rank.setMinWidth(dp(52))
-            info = LinearLayout(activity)
-            info.setOrientation(LinearLayout.VERTICAL)
-            info.addView(text_view(16, colors["text"]))
-            info.addView(text_view(12, colors["muted"]))
-            score = LinearLayout(activity)
-            score.setOrientation(LinearLayout.VERTICAL)
-            score.setGravity(Gravity.END)
-            score.addView(text_view(16, colors["text"], bold=True, align_end=True))
-            score.addView(text_view(11, colors["muted"], align_end=True))
+            row.setPadding(_dp(native, 14), _dp(native, 12), _dp(native, 14), _dp(native, 12))
+            rank = text_view(15, Gravity.START)
+            rank.setMinWidth(_dp(native, 52))
+            info = text_view(16, Gravity.START)
+            score = text_view(16, Gravity.END)
             row.addView(rank, LinearLayout.LayoutParams(wrap, wrap))
             row.addView(info, LinearLayout.LayoutParams(0, wrap, 1.0))  # takes the free width
             row.addView(score, LinearLayout.LayoutParams(wrap, wrap))
+            holders[row.hashCode()] = [rank, info, score, None]
             return row
-
-        def bind(row, data):
-            rank, info, score = row.getChildAt(0), row.getChildAt(1), row.getChildAt(2)
-            rank.setText(data["rank"])
-            rank.setTextColor(_color(data["rank_color"]))
-            title = info.getChildAt(0)
-            title.setText(data["title"])
-            title.setTextColor(_color(data["title_color"]))
-            title.setTypeface(Typeface.DEFAULT_BOLD if data["bold"] else Typeface.DEFAULT)
-            info.getChildAt(1).setText(data["subtitle"])
-            score.getChildAt(0).setText(data["score"])
-            score.getChildAt(1).setText(data["votes"])
-            _set_shape(row, data["fill"], 12, data["stroke"], 1, colors["ripple"])
 
         class Adapter(dynamic_proxy(ListAdapter)):
             def getCount(self):
@@ -391,7 +393,14 @@ class NativeList:
 
             def getView(self, position, convert_view, parent):
                 row = convert_view if convert_view is not None else build_row()
-                bind(row, owner.rows[position])
+                holder = holders[row.hashCode()]
+                data = owner.rows[position]
+                holder[0].setText(Html.fromHtml(data["rank"], html_mode))
+                holder[1].setText(Html.fromHtml(data["info"], html_mode))
+                holder[2].setText(Html.fromHtml(data["score"], html_mode))
+                if holder[3] != data["kind"]:
+                    holder[3] = data["kind"]
+                    row.setBackground(background(data["kind"]))
                 return row
 
             def getItemViewType(self, position):
@@ -425,30 +434,17 @@ class NativeList:
         self._adapter_class = Adapter
         self.view = ListView(activity)
         self.view.setDivider(ColorDrawable(Color.TRANSPARENT))
-        self.view.setDividerHeight(dp(6))
+        self.view.setDividerHeight(_dp(native, 6))
         self.view.setSelector(ColorDrawable(Color.TRANSPARENT))
         self.view.setOverScrollMode(View.OVER_SCROLL_NEVER)
         self.view.setOnItemClickListener(Click())
         match = RelativeLayout.LayoutParams.MATCH_PARENT
-        box._impl.native.addView(self.view, RelativeLayout.LayoutParams(match, match))
+        native.addView(self.view, RelativeLayout.LayoutParams(match, match))
 
     def set_rows(self, rows: list[dict]):
         self.rows = rows
         # A fresh adapter makes the ListView reload everything and scroll to the top
         self.view.setAdapter(self._adapter_class())
-
-
-def _set_shape(native, fill, radius, stroke, stroke_width, ripple):
-    """``shape()`` for a raw Android view (used by NativeList rows)."""
-    from android.content.res import ColorStateList
-    from android.graphics.drawable import GradientDrawable, RippleDrawable
-
-    d = GradientDrawable()
-    d.setColor(_color(fill) if fill else 0)
-    d.setCornerRadius(_dp(native, radius))
-    if stroke:
-        d.setStroke(_dp(native, stroke_width), _color(stroke))
-    native.setBackground(RippleDrawable(ColorStateList.valueOf(_color(ripple)), d, None) if ripple else d)
 
 
 def style_window(app: toga.App, bar: str, subtitle: str | None = None) -> bool:

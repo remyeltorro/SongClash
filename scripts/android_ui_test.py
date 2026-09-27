@@ -257,7 +257,8 @@ def scenario(dev: Device, fresh: bool):
     dev.find("TEAL CORNER", timeout=90)
     assert votes(dev) == 0  # a new app run starts a new vote count...
     dev.tap_until("Songs", "Leaderboard")
-    assert any(re.fullmatch(r"[1-9]\d* votes", t) for t in dev.texts())  # ...but keeps the scores
+    # ...but keeps the scores ("1216\n3 votes" in a leaderboard row)
+    assert any(re.search(r"(^|\n)[1-9]\d* votes$", t) for t in dev.texts()), dev.texts()
     dev.screenshot("restored")
 
 
