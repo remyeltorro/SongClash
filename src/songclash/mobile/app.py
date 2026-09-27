@@ -13,7 +13,7 @@ from pathlib import Path
 
 import toga
 from toga.style import Pack
-from toga.style.pack import COLUMN
+from toga.style.pack import BOLD, COLUMN, NONE, PACK
 
 from songclash import APP_NAME, __version__
 from songclash.core import storage
@@ -30,12 +30,12 @@ from songclash.mobile.sessions import SessionsScreen
 log = logging.getLogger(__name__)
 
 APP_ID = "io.github.remyeltorro.songclash"
-NAV = [
-    ("battle", "Battle"),
-    ("songs", "Songs"),
-    ("albums", "Albums"),
-    ("import", "＋Artist"),
-    ("sessions", "Sessions"),
+NAV = [  # bottom tab bar: (page, icon, label)
+    ("battle", "⚔", "Battle"),
+    ("songs", "♛", "Songs"),
+    ("albums", "◉", "Albums"),
+    ("import", "＋", "Artist"),
+    ("sessions", "☰", "Sessions"),
 ]
 MESSAGE_SECONDS = 5
 
@@ -59,26 +59,38 @@ class SongClashMobile(toga.App):
         }
 
         self.nav = {
-            name: theme.Button(
-                label,
-                on_press=lambda w, name=name, **kw: self.show(name),
-                style=theme.button(color=theme.SURFACE, font_size=12, height=44, flex=1),
+            name: theme.pill(
+                f"{icon}\n{label}",
+                lambda w, name=name, **kw: self.show(name),
+                "tab",
+                56,
+                radius=14,
+                size=12,
+                flex=1,
             )
-            for name, label in NAV
+            for name, icon, label in NAV
         }
         self.holder = toga.Box(style=Pack(direction=COLUMN, flex=1, background_color=theme.BG))
-        self.status = toga.Label("", style=theme.text(12, theme.GOLD, margin=(4, 12, 8, 12)))
+        # Messages show as Android toasts; elsewhere in this label
+        self.status = toga.Label(
+            "", style=theme.text(13, theme.GOLD, margin=(4, 14), display=NONE, font_weight=BOLD)
+        )
+        tab_bar = toga.Box(
+            children=list(self.nav.values()),
+            style=theme.row(flex=1, gap=4, margin=(6, 8), background_color=theme.BG_DEEP),
+        )
         root = toga.Box(
             children=[
-                toga.Box(children=list(self.nav.values()), style=theme.row(gap=2, background_color=theme.BG)),
                 self.holder,
                 self.status,
+                toga.Box(children=[tab_bar], style=Pack(background_color=theme.BG_DEEP)),
             ],
             style=Pack(direction=COLUMN, flex=1, background_color=theme.BG),
         )
 
         self.main_window = toga.MainWindow(title=APP_NAME)
         self.main_window.content = root
+        device.style_window(self, theme.BG_DEEP)
 
         last = self.library.last_session()
         if last:
@@ -93,7 +105,7 @@ class SongClashMobile(toga.App):
     def show(self, name):
         self.show_screen(self.pages[name])
         for key, btn in self.nav.items():
-            btn.style.color = theme.GOLD if key == name else theme.TEXT
+            theme.restyle(btn, "tab_active" if key == name else "tab")
 
     def show_screen(self, screen):
         if screen is not self.pages["battle"]:
@@ -104,14 +116,17 @@ class SongClashMobile(toga.App):
         self.holder.add(screen.box)
 
     def message(self, text):
+        if device.toast(self, text):
+            return
         self._message_token += 1
         token = self._message_token
-        self.status.text = theme.wrap(text, size=12)
+        self.status.text = theme.wrap(text, size=13)
+        self.status.style.display = PACK
 
         async def clear():
             await asyncio.sleep(MESSAGE_SECONDS)
             if self._message_token == token:
-                self.status.text = ""
+                self.status.style.display = NONE
 
         asyncio.ensure_future(clear())
 
@@ -122,7 +137,8 @@ class SongClashMobile(toga.App):
         return await self.main_window.dialog(toga.ConfirmDialog(title, text))
 
     def refresh_title(self):
-        self.main_window.title = f"{APP_NAME} · {self.session_name()}"
+        if not device.style_window(self, theme.BG_DEEP, subtitle=self.session_name()):
+            self.main_window.title = f"{APP_NAME} · {self.session_name()}"
 
     # ==========================
     # PERSISTENCE (automatic)

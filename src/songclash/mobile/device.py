@@ -94,7 +94,14 @@ class AndroidPlayer:
     def play(self, url, on_started, on_finished):
         self.stop()
         self.generation += 1
-        listener = self._Listener(self.generation, on_started, on_finished)
+        # MediaPlayer calls back from Java, outside the asyncio loop Toga's UI
+        # runs in; hop back onto that loop before touching any widget.
+        loop = asyncio.get_event_loop()
+        listener = self._Listener(
+            self.generation,
+            lambda: loop.call_soon_threadsafe(on_started),
+            lambda error: loop.call_soon_threadsafe(on_finished, error),
+        )
         player = self._MediaPlayer()
         player.setAudioAttributes(self._attributes)
         player.setOnPreparedListener(listener)
@@ -124,17 +131,196 @@ class AndroidPlayer:
         return self.player.getCurrentPosition() / duration if duration > 0 else 0.0
 
 
+# ---------- Native styling ----------
+#
+# Toga's Pack styles can't round corners, draw borders or gradients. On
+# Android these helpers put GradientDrawables behind widgets instead. Each
+# returns False on other platforms so callers can fall back to Pack styles.
+
+
+def _dp(native, value: float) -> int:
+    return int(value * native.getResources().getDisplayMetrics().density + 0.5)
+
+
+def _color(value: str) -> int:
+    from android.graphics import Color
+
+    return Color.parseColor(value)
+
+
 def tune_button(button: toga.Button):
-    """Android buttons default to ALL CAPS and an 88dp minimum width, which
-    shouts song titles and pushes a row of five buttons off the screen."""
+    """Android buttons default to ALL CAPS, an 88x48dp minimum size and
+    extra padding, which shouts song titles and overflows rows of buttons."""
     if not IS_ANDROID:
         return
     native = button._impl.native
     native.setAllCaps(False)
     native.setMinWidth(0)
     native.setMinimumWidth(0)
-    pad = int(6 * native.getResources().getDisplayMetrics().density)
-    native.setPadding(pad, native.getPaddingTop(), pad, native.getPaddingBottom())
+    native.setMinHeight(0)
+    native.setMinimumHeight(0)
+    native.setSingleLine(False)
+    native.setMaxLines(3)
+    pad = _dp(native, 8)
+    native.setPadding(pad, 0, pad, 0)
+
+
+def set_text(widget: toga.Widget, text: str) -> bool:
+    """Set a TextView's text directly, bypassing Toga's single-line rule."""
+    if not IS_ANDROID:
+        return False
+    widget._impl.native.setText(text)
+    return True
+
+
+def shape(
+    widget: toga.Widget,
+    fill: str | None = None,
+    radius: float = 12,
+    stroke: str | None = None,
+    stroke_width: float = 1.5,
+    gradient: list[str] | None = None,
+    vertical: bool = False,
+    ripple: str | None = None,
+) -> bool:
+    """Give ``widget`` a rounded background, optionally bordered or gradient-filled."""
+    if not IS_ANDROID:
+        return False
+    from android.content.res import ColorStateList
+    from android.graphics.drawable import GradientDrawable, RippleDrawable
+
+    native = widget._impl.native
+    d = GradientDrawable()
+    if gradient:
+        orientation = GradientDrawable.Orientation
+        d.setOrientation(orientation.TOP_BOTTOM if vertical else orientation.LEFT_RIGHT)
+        d.setColors([_color(c) for c in gradient])
+    else:
+        d.setColor(_color(fill) if fill else 0)
+    d.setCornerRadius(_dp(native, radius))
+    if stroke:
+        d.setStroke(_dp(native, stroke_width), _color(stroke))
+    background = RippleDrawable(ColorStateList.valueOf(_color(ripple)), d, None) if ripple else d
+    native.setBackground(background)
+    # Drop the Material press shadow, which draws outside our shape
+    native.setStateListAnimator(None)
+    native.setElevation(0)
+    native.setClipToOutline(True)  # clips images to the rounded corners
+    return True
+
+
+def badge(widget: toga.Widget, fill: str, stroke: str, glow: str) -> bool:
+    """A round badge with a glowing ring behind ``widget``'s text (the VS emblem)."""
+    if not IS_ANDROID:
+        return False
+    from android.graphics.drawable import GradientDrawable, InsetDrawable, LayerDrawable
+
+    native = widget._impl.native
+
+    def ring(color, border, width, inset):
+        oval = GradientDrawable()
+        oval.setShape(GradientDrawable.OVAL)
+        oval.setColor(_color(color) if color else 0)
+        oval.setStroke(_dp(native, width), _color(border))
+        return InsetDrawable(oval, _dp(native, inset))
+
+    native.setBackground(LayerDrawable([ring(None, glow, 5, 0), ring(fill, stroke, 2.5, 6)]))
+    native.setGravity(17)  # Gravity.CENTER
+    native.setSingleLine(True)
+    return True
+
+
+def letter_spacing(widget: toga.Widget, em: float):
+    if IS_ANDROID:
+        widget._impl.native.setLetterSpacing(em)
+
+
+def tint(widget: toga.Widget, color: str, off: str | None = None):
+    """Accent color for text fields, dropdowns, switches and progress bars."""
+    if not IS_ANDROID:
+        return
+    from android import R
+    from android.content.res import ColorStateList
+
+    native = widget._impl.native
+    on = ColorStateList.valueOf(_color(color))
+    if off is not None:  # a Switch: color the thumb and track by state
+        checked = ColorStateList([[R.attr.state_checked], []], [_color(color), _color(off)])
+        native.setThumbTintList(checked)
+        native.setTrackTintList(checked)
+    elif hasattr(native, "setProgressTintList"):
+        native.setProgressTintList(on)
+        native.setIndeterminateTintList(on)
+    else:
+        native.setBackgroundTintList(on)
+
+
+_listener_classes = {}
+
+
+def on_tap(widget: toga.Widget, handler: Callable[[], None], long_press: bool = False) -> bool:
+    """Make any widget (a Box row, say) respond to taps."""
+    if not IS_ANDROID:
+        return False
+    from android.view import View
+    from java import dynamic_proxy
+
+    if not _listener_classes:
+
+        class Tap(dynamic_proxy(View.OnClickListener)):
+            def __init__(self, handler):
+                super().__init__()
+                self.handler = handler
+
+            def onClick(self, view):
+                self.handler()
+
+        class LongTap(dynamic_proxy(View.OnLongClickListener)):
+            def __init__(self, handler):
+                super().__init__()
+                self.handler = handler
+
+            def onLongClick(self, view):
+                self.handler()
+                return True
+
+        _listener_classes.update(tap=Tap, long=LongTap)
+
+    native = widget._impl.native
+    listener = _listener_classes["long" if long_press else "tap"](handler)
+    if long_press:
+        native.setOnLongClickListener(listener)
+    else:
+        native.setOnClickListener(listener)
+    return True
+
+
+def toast(app: toga.App, text: str) -> bool:
+    """A short native notification at the bottom of the screen."""
+    if not IS_ANDROID:
+        return False
+    from android.widget import Toast
+
+    Toast.makeText(app._impl.native, text, Toast.LENGTH_SHORT).show()
+    return True
+
+
+def style_window(app: toga.App, bar: str, subtitle: str | None = None) -> bool:
+    """Color the action bar and system bars to match the app."""
+    if not IS_ANDROID:
+        return False
+    from android.graphics.drawable import ColorDrawable
+
+    activity = app._impl.native
+    action_bar = activity.getSupportActionBar()
+    if action_bar is not None:
+        action_bar.setBackgroundDrawable(ColorDrawable(_color(bar)))
+        action_bar.setElevation(0)
+        action_bar.setSubtitle(subtitle)
+    window = activity.getWindow()
+    window.setStatusBarColor(_color(bar))
+    window.setNavigationBarColor(_color(bar))
+    return True
 
 
 def make_player():

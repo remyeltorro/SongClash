@@ -7,45 +7,42 @@ import time
 
 import toga
 from toga.style import Pack
-from toga.style.pack import COLUMN
+from toga.style.pack import BOLD, COLUMN
 
-from songclash.mobile import theme
+from songclash.mobile import device, theme
+from songclash.mobile.rankings import header
 
 
 class SessionsScreen:
     def __init__(self, controller):
         self.c = controller
-        self.name = toga.TextInput(on_confirm=self.rename, style=Pack(flex=1))
-        self.current = toga.Label("", style=theme.text(12, theme.MUTED))
+        self.name = theme.text_input(on_confirm=self.rename)
+        self.current = theme.muted("", 13)
         self.rows = toga.Box(style=Pack(direction=COLUMN, gap=8))
         content = toga.Box(
             children=[
-                toga.Label("Current Session", style=theme.heading(18)),
-                toga.Box(
-                    children=[
-                        self.name,
-                        theme.Button("Rename", on_press=self.rename, style=theme.button(width=100)),
-                    ],
-                    style=theme.row(gap=8),
+                header("☰  Sessions", "Saved automatically after every vote"),
+                theme.card(
+                    theme.corner_tag("CURRENT SESSION", theme.GOLD, 11),
+                    toga.Box(
+                        children=[self.name, theme.pill("Rename", self.rename, "surface", 40, width=96)],
+                        style=theme.row(gap=10),
+                    ),
+                    self.current,
+                    toga.Box(
+                        children=[
+                            theme.pill("＋  New", self.new_session, "surface", 44, flex=1),
+                            theme.pill("⤓  Export", self.export, "surface", 44, flex=1),
+                        ],
+                        style=theme.row(gap=10, margin=(4, 0, 0, 0)),
+                    ),
+                    padding=16,
+                    gap=10,
+                    stroke=theme.GOLD,
                 ),
-                self.current,
-                toga.Box(
-                    children=[
-                        theme.Button("New Session", on_press=self.new_session, style=theme.button(flex=1)),
-                        theme.Button("Export File", on_press=self.export, style=theme.button(flex=1)),
-                    ],
-                    style=theme.row(gap=8),
-                ),
-                theme.Button(
-                    "Import Session File…",
-                    on_press=self.import_file,
-                    style=theme.button(),
-                ),
-                toga.Label(
-                    theme.wrap("Session files are compatible with the SongClash desktop app.", size=12),
-                    style=theme.text(12, theme.MUTED),
-                ),
-                toga.Label("Saved Sessions", style=theme.heading(18, margin_top=10)),
+                theme.pill("⤒  Import a Session File…", self.import_file, "ghost", 46),
+                theme.muted(theme.wrap("Session files work in the SongClash desktop app too.", size=12), 12),
+                theme.corner_tag("SAVED SESSIONS", theme.MUTED, 11),
                 self.rows,
             ],
             style=theme.page(),
@@ -57,44 +54,39 @@ class SessionsScreen:
     def refresh(self):
         s = self.c.session
         self.name.value = self.c.session_name()
-        self.current.text = f"{len(s.songs)} songs · saved automatically"
+        self.current.text = f"{len(s.songs)} songs · {s.votes_this_session} votes this session"
         self.rows.clear()
         sessions = self.c.library.sessions()
         if not sessions:
-            self.rows.add(toga.Label("No saved sessions yet.", style=theme.text(13, theme.MUTED)))
+            self.rows.add(theme.muted("No saved sessions yet."))
         for info in sessions:
             is_current = s.current_filename is not None and info.path.samefile(s.current_filename)
-            when = time.strftime("%d %b %Y, %H:%M", time.localtime(info.modified))
-            name = theme.wrap(f"{'● ' if is_current else ''}{info.name}", 270, 14)
-            label = f"{name}\n{info.songs} songs · {when}"
-            self.rows.add(
-                toga.Box(
-                    children=[
-                        theme.Button(
-                            label,
-                            on_press=functools.partial(self._open, info.path),
-                            style=theme.button(
-                                color=theme.SURFACE,
-                                text_color=theme.GOLD if is_current else theme.TEXT,
-                                height=64,
-                                font_size=14,
-                                flex=1,
-                            ),
-                        ),
-                        theme.Button(
-                            "✕",
-                            on_press=functools.partial(self._delete, info),
-                            style=theme.button(
-                                color=theme.SURFACE, text_color=theme.RED, width=52, height=64
-                            ),
-                        ),
-                    ],
-                    style=theme.row(gap=6),
-                )
-            )
+            self.rows.add(self._row(info, is_current))
 
-    def _open(self, path, widget, **kw):
-        self.c.open_session(path)
+    def _row(self, info, is_current):
+        when = time.strftime("%d %b %Y, %H:%M", time.localtime(info.modified))
+        details = toga.Box(
+            children=[
+                toga.Label(
+                    theme.wrap(info.name, 250, 16),
+                    style=theme.text(16, theme.GOLD if is_current else theme.TEXT, font_weight=BOLD),
+                ),
+                theme.muted(f"{info.songs} songs · {when}" + ("  ·  open" if is_current else ""), 12),
+            ],
+            style=Pack(direction=COLUMN, flex=1, gap=2),
+        )
+        delete = theme.pill("✕", functools.partial(self._delete, info), "danger", 40, width=44, size=16)
+        row = toga.Box(children=[details, delete], style=theme.row(gap=10, margin=(10, 10, 10, 16)))
+        card = theme.skin(
+            toga.Box(children=[row], style=Pack(direction=COLUMN)),
+            fill=theme.SURFACE,
+            stroke=theme.GOLD if is_current else theme.BORDER,
+            radius=14,
+            ripple=theme.RIPPLE,
+        )
+        if not device.on_tap(card, lambda: self.c.open_session(info.path)):
+            row.insert(1, theme.pill("Open", lambda w, **kw: self.c.open_session(info.path), "ghost", 40))
+        return card
 
     async def _delete(self, info, widget, **kw):
         if await self.c.confirm(

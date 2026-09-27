@@ -17,7 +17,7 @@ ANDROID_DIR = ROOT / "build" / "icons"
 # Briefcase looks for {icon}-{variant}-{size}.png
 ANDROID_SIZES = {
     "round": [48, 72, 96, 144, 192],
-    "square": [48, 72, 96, 144, 192],
+    "square": [48, 72, 96, 144, 192, 320, 480, 640, 960, 1280],  # the large ones: splash screen
     # Adaptive icons are masked to a circle/squircle: the artwork must sit in
     # the inner 66% "safe zone"
     "adaptive": [108, 162, 216, 324, 432],

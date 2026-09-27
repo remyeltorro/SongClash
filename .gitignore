@@ -19,5 +19,6 @@ __pycache__/
 /test_*
 /verify_*
 
-# Briefcase
+# Briefcase (build/ above holds its Android project)
 logs/
+.briefcase/

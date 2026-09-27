@@ -42,18 +42,18 @@ them, so export anything you want to keep first.
 
 | Screen | What it does |
 | --- | --- |
-| **Battle** | Tap a song title to vote for it. **Undo** reverts the last vote, **Skip** picks another pair. **Preview** plays 30 s from iTunes. The album picker ranks within one album. |
-| **Songs** | The leaderboard for the current album filter. Long-press a song to delete it or merge it with another. **Export CSV** saves a playlist you can import into Spotify with Soundiiz or TuneMyMusic. |
-| **Albums** | Albums ranked by the average score of their songs. |
-| **＋Artist** | Search MusicBrainz, pick the artist and release types, and import. |
-| **Sessions** | Rename, start, open or delete sessions. **Export File** / **Import Session File** exchange `.json` session files with the desktop app. |
+| **Battle** | Tap a song's title card to vote for it. **Undo** reverts the last vote, **Skip** picks another pair. **Play** streams a 30 s iTunes preview. The weight class picker ranks within one album. |
+| **Songs** | The leaderboard for the current album filter, podium in gold, silver and bronze. Tap a song to merge it with another or delete it. **Export CSV** saves a playlist you can import into Spotify with Soundiiz or TuneMyMusic. |
+| **Albums** | Albums ranked by the average score of their songs. Tap one to battle only its songs or delete it. |
+| **Artist** | Search MusicBrainz, pick the artist and release types, and import. |
+| **Sessions** | Rename, start, open or delete sessions. **Export** / **Import a Session File** exchange `.json` session files with the desktop app. |
 
 Sessions are saved automatically after every change, in the app's private
 storage. The app reopens the last session on launch.
 
 ## Development
 
-Preview the mobile UI on the desktop (no audio, Windows dialogs):
+Preview the mobile UI on the desktop (no audio, no rounded corners, Windows dialogs):
 
 ```bash
 pip install -e ".[mobile]"
@@ -75,8 +75,8 @@ How the pieces fit:
 | `mobile/library.py` | session files and settings in the app's data folder (plain Python, tested) |
 | `mobile/audio.py` | preview lookup and play/stop state |
 | `mobile/covers.py` | cover downloads, cached in memory and on disk |
-| `mobile/device.py` | Android APIs through Chaquopy (MediaPlayer, file pickers), with desktop fallbacks |
-| `mobile/theme.py` | colors and Pack styles |
+| `mobile/device.py` | Android APIs through Chaquopy (MediaPlayer, file pickers, toasts, rounded/gradient backgrounds), with desktop fallbacks |
+| `mobile/theme.py` | the desktop's colors, plus pills, cards and badges built from Pack styles and native drawables |
 
 `python -m songclash` starts the Toga app on Android and the PyQt6 app
 everywhere else. Briefcase reads its settings from `[tool.briefcase]` in

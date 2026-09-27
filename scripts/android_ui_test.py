@@ -108,6 +108,28 @@ class Device:
         time.sleep(1)
         return node
 
+    def tap_until(self, text, shown, attempts=3, **kw):
+        """Tap ``text`` until a node matching ``shown`` appears.
+
+        Right after launch the app may still be laying out and swallow a tap.
+        """
+        for _ in range(attempts):
+            self.tap(text, **kw)
+            try:
+                return self.find(shown, timeout=5)
+            except AssertionError:
+                pass
+        raise AssertionError(f"tapping '{text}' never showed '{shown}'")
+
+    def wait_for_audio(self, timeout=60):
+        """Wait until the media framework reports audio output in logcat."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if b"AudioTrack" in self.adb("logcat", "-d", binary=True):
+                return
+            time.sleep(1)
+        raise AssertionError(f"no audio playback after {timeout}s")
+
     def long_press(self, node):
         x, y = node.center
         self.shell("input", "swipe", str(x), str(y), str(x), str(y), "1000")
@@ -115,6 +137,26 @@ class Device:
 
     def type(self, text):
         self.shell("input", "text", text.replace(" ", "%s"))
+
+    def fill_text_field(self, text, attempts=3):
+        """Type into the first text field, checking the result.
+
+        ``input text`` can drop characters while the keyboard is still
+        opening, so clear and retype until the field holds ``text``.
+        """
+        for _ in range(attempts):
+            field = next(n for n in self.nodes() if n.cls.endswith("EditText"))
+            self.tap(field)
+            time.sleep(1)  # let the keyboard open
+            self.shell("input", "keyevent", "KEYCODE_MOVE_END")
+            for _ in range(len(field.text) + 5):
+                self.shell("input", "keyevent", "KEYCODE_DEL")
+            self.type(text)
+            time.sleep(1)
+            typed = next(n for n in self.nodes() if n.cls.endswith("EditText")).text
+            if typed == text:
+                return
+        raise AssertionError(f"typed {text!r} but the field holds {typed!r}")
 
     def key(self, name):
         self.shell("input", "keyevent", name)
@@ -151,15 +193,13 @@ def scenario(dev: Device, fresh: bool):
         dev.launch()
         dev.find("Add an Artist", timeout=90)
         dev.screenshot("welcome")
-        dev.tap("Add an Artist")
+        dev.tap_until("Add an Artist", "Search")
     else:
         dev.launch()
-        dev.tap("＋Artist", timeout=90)
+        dev.tap_until("＋Artist", "Search", timeout=90)
 
     step(f"Search for {ARTIST}")
-    edit = next(n for n in dev.nodes() if n.cls.endswith("EditText"))
-    dev.tap(edit)
-    dev.type(ARTIST)
+    dev.fill_text_field(ARTIST)
     dev.screenshot("search")
     dev.tap("Search", exact=True)
     dev.find("Import Songs", timeout=60)
@@ -181,11 +221,13 @@ def scenario(dev: Device, fresh: bool):
     assert votes(dev) == start + 4, votes(dev)
 
     step("Play an audio preview")
-    dev.tap("Preview")
-    dev.find("Stop", timeout=30)
-    time.sleep(3)
+    dev.adb("logcat", "-c")
+    play = dev.tap("Play")
+    dev.wait_for_audio(timeout=60)
+    time.sleep(2)
     dev.screenshot("preview_playing")
-    dev.tap("Stop")
+    # uiautomator can report a stale label here, so tap the same spot to stop
+    dev.tap(play)
 
     step("Filter by album")
     selector = next(n for n in dev.nodes() if n.cls.endswith("Spinner"))
@@ -196,21 +238,17 @@ def scenario(dev: Device, fresh: bool):
     dev.screenshot("filtered_battle")
 
     step("Leaderboards")
-    dev.tap("Songs", exact=True)
-    dev.find("Leaderboard")
+    dev.tap_until("Songs", "Leaderboard")
     dev.screenshot("songs")
-    dev.long_press(dev.find("1."))
-    dev.find("Merge with")
-    dev.screenshot("song_actions")
-    dev.key("KEYCODE_BACK")
-    dev.tap("Albums", exact=True)
-    dev.find("Album Rankings")
+    dev.tap_until("🥇", "Merge with")
+    dev.screenshot("song_sheet")
+    dev.tap("Back")
+    dev.tap_until("Albums", "Album Rankings")
     time.sleep(4)
     dev.screenshot("albums")
 
     step("Sessions")
-    dev.tap("Sessions", exact=True)
-    dev.find("Saved Sessions")
+    dev.tap_until("Sessions", "Saved Sessions")
     dev.screenshot("sessions")
 
     step("The session survives a restart")
@@ -218,8 +256,8 @@ def scenario(dev: Device, fresh: bool):
     dev.launch()
     dev.find("TEAL CORNER", timeout=90)
     assert votes(dev) == 0  # a new app run starts a new vote count...
-    dev.tap("Songs", exact=True)
-    assert any(re.search(r"· [1-9]\d* votes ·", t) for t in dev.texts())  # ...but keeps the scores
+    dev.tap_until("Songs", "Leaderboard")
+    assert any(re.fullmatch(r"[1-9]\d* votes", t) for t in dev.texts())  # ...but keeps the scores
     dev.screenshot("restored")
 
 

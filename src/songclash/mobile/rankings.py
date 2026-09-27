@@ -1,74 +1,110 @@
-"""Song and album leaderboards, plus the add-song and merge forms."""
+"""Song and album leaderboards, their detail sheets, and the song forms."""
 
 from __future__ import annotations
 
 import toga
 from toga.style import Pack
-from toga.style.pack import COLUMN, RIGHT
+from toga.style.pack import BOLD, COLUMN, RIGHT
 
 from songclash.core.export import ranking_csv
+from songclash.core.models import song_caption
 from songclash.core.session import ALL_ALBUMS
-from songclash.mobile import theme
+from songclash.mobile import device, theme
 from songclash.mobile.library import safe_name
 
 
 def rank_label(rank: int) -> str:
-    return f"{theme.MEDALS[rank - 1]} {rank}" if rank <= len(theme.MEDALS) else str(rank)
+    return f"{theme.MEDAL_ICONS[rank - 1]} {rank}" if rank <= len(theme.MEDALS) else str(rank)
+
+
+def rank_color(rank: int, default=theme.TEXT) -> str:
+    return theme.MEDALS[rank - 1] if rank <= len(theme.MEDALS) else default
+
+
+def tappable_row(children, on_tap, rank):
+    """A leaderboard row: alternating stripes like the desktop table, tap to open."""
+    row = toga.Box(children=children, style=theme.row(gap=12, margin=(10, 12)))
+    outer = toga.Box(children=[row], style=Pack(direction=COLUMN))
+    theme.skin(
+        outer,
+        fill=theme.SURFACE if rank % 2 else theme.SURFACE_HI,
+        stroke=theme.MEDALS[rank - 1] if rank <= len(theme.MEDALS) else None,
+        stroke_width=1,
+        radius=12,
+        ripple=theme.RIPPLE,
+    )
+    if not device.on_tap(outer, on_tap):
+        # No native tap handling (desktop preview): add a button instead
+        row.add(theme.pill("›", lambda w, **kw: on_tap(), "ghost", 36, width=40))
+    return outer
+
+
+def header(title, subtitle=None):
+    children = [toga.Label(title, style=theme.heading(22))]
+    if subtitle:
+        children.append(theme.muted(theme.wrap(subtitle, size=13)))
+    return toga.Box(children=children, style=Pack(direction=COLUMN, gap=2))
+
+
+def scroller(content):
+    return toga.ScrollContainer(
+        content=content, horizontal=False, style=Pack(flex=1, background_color=theme.BG)
+    )
 
 
 class SongsScreen:
-    """Ranked songs for the current album filter. Long-press a song to edit it."""
+    """Ranked songs for the current album filter. Tap a song to edit it."""
 
     def __init__(self, controller):
         self.c = controller
-        self.title = toga.Label("", style=theme.heading(18))
-        self.hint = toga.Label("Long-press a song to delete or merge it.", style=theme.text(12, theme.MUTED))
-        self.list = toga.DetailedList(
-            accessors=("title", "subtitle", "icon"),
-            primary_action="Delete",
-            on_primary_action=self.delete_song,
-            secondary_action="Merge with…",
-            on_secondary_action=self.merge_song,
-            style=Pack(flex=1),
-        )
-        buttons = toga.Box(
+        self.header = toga.Box(style=Pack(direction=COLUMN))
+        self.rows = toga.Box(style=Pack(direction=COLUMN, gap=6))
+        actions = toga.Box(
             children=[
-                theme.Button("＋ Add Song", on_press=self.add_song, style=theme.button(flex=1)),
-                theme.Button(
-                    "Export CSV",
-                    on_press=self.export_csv,
-                    style=theme.button(color=theme.GOLD, text_color=theme.BG, flex=1),
-                ),
+                theme.pill("＋  Add Song", self.add_song, "teal", 42, flex=1),
+                theme.pill("⤓  Export CSV", self.export_csv, "gold", 42, flex=1),
             ],
-            style=theme.row(gap=8),
+            style=theme.row(gap=10),
         )
-        self.box = toga.Box(children=[self.title, buttons, self.hint, self.list], style=theme.page())
+        self.box = toga.Box(children=[self.header, actions, scroller(self.rows)], style=theme.page())
 
     def refresh(self):
         s = self.c.session
-        self.title.text = theme.wrap(f"♛ Leaderboard · {s.active_filter}", size=18)
-        rows = []
+        self.header.clear()
+        self.header.add(header("♛  Leaderboard", f"{s.active_filter} · tap a song to merge or delete it"))
+        self.rows.clear()
         for rank, key in enumerate(s.ranked_keys(), start=1):
-            song = s.songs[key]
-            rows.append(
-                {
-                    "title": f"{rank_label(rank)}.  {song['title']}",
-                    "subtitle": f"{round(song['score'])} pts · {song['matches']} votes · {song['album']}",
-                    "icon": None,
-                    "key": key,
-                }
-            )
-        self.list.data = rows
+            self.rows.add(self._row(rank, key, s.songs[key]))
 
-    async def delete_song(self, widget, row, **kw):
-        song = self.c.session.songs.get(row.key)
-        if song and await self.c.confirm("Delete Song", f"Remove '{song['title']}' from the session?"):
-            self.c.session.delete_songs([row.key])
-            self.c.songs_changed(f"Deleted '{song['title']}'.")
-
-    def merge_song(self, widget, row, **kw):
-        if row.key in self.c.session.songs:
-            self.c.show_screen(MergeForm(self.c, row.key))
+    def _row(self, rank, key, song):
+        color = rank_color(rank)
+        top = rank <= len(theme.MEDALS)
+        info = toga.Box(
+            children=[
+                toga.Label(
+                    theme.wrap(song["title"], 200, 16),
+                    style=theme.text(16, color, font_weight=BOLD if top else "normal"),
+                ),
+                theme.muted(theme.wrap(song["album"], 200, 12), 12),
+            ],
+            style=Pack(direction=COLUMN, flex=1, gap=2),
+        )
+        score = toga.Box(
+            children=[
+                toga.Label(
+                    str(round(song["score"])),
+                    style=theme.text(16, theme.TEXT, font_weight=BOLD, text_align=RIGHT),
+                ),
+                theme.muted(f"{song['matches']} votes", 11, text_align=RIGHT),
+            ],
+            style=Pack(direction=COLUMN, width=64),
+        )
+        rank_text = toga.Label(
+            rank_label(rank), style=theme.text(15, rank_color(rank, theme.MUTED), font_weight=BOLD, width=48)
+        )
+        return tappable_row(
+            [rank_text, info, score], lambda: self.c.show_screen(SongSheet(self.c, key, rank)), rank
+        )
 
     def add_song(self, widget, **kw):
         self.c.show_screen(AddSongForm(self.c))
@@ -92,16 +128,76 @@ class SongsScreen:
             )
 
 
+def stat(value, label, color=theme.TEXT):
+    return toga.Box(
+        children=[
+            toga.Label(value, style=theme.heading(22, color)),
+            theme.corner_tag(label, theme.MUTED, 10),
+        ],
+        style=Pack(direction=COLUMN, flex=1, gap=2),
+    )
+
+
+def back_button(controller, screen):
+    return theme.pill("‹  Back", lambda w, **kw: controller.show(screen), "ghost", 44)
+
+
+class SongSheet:
+    """One song: its stats, and the edits you can make to it."""
+
+    def __init__(self, controller, key, rank):
+        self.c = controller
+        self.key = key
+        song = controller.session.songs[key]
+        color = rank_color(rank)
+        self.box = toga.Box(
+            children=[
+                theme.card(
+                    theme.corner_tag(f"RANK #{rank}", color),
+                    toga.Label(theme.wrap(song["title"], 330, 24), style=theme.heading(24, theme.TEXT)),
+                    theme.muted(theme.wrap(song_caption(song), 330, 14), 14),
+                    toga.Box(
+                        children=[
+                            stat(str(round(song["score"])), "SCORE", theme.GOLD),
+                            stat(str(song["matches"]), "VOTES"),
+                            stat(rank_label(rank), "RANK", color),
+                        ],
+                        style=theme.row(gap=8, margin=(8, 0, 0, 0)),
+                    ),
+                    padding=16,
+                    gap=8,
+                    stroke=color if rank <= len(theme.MEDALS) else theme.BORDER,
+                ),
+                theme.pill("⇄  Merge with another song…", self.merge, "surface", 48),
+                theme.pill("✕  Delete song", self.delete, "danger", 48),
+                back_button(controller, "songs"),
+            ],
+            style=theme.page(),
+        )
+
+    def refresh(self):
+        pass
+
+    def merge(self, widget, **kw):
+        self.c.show_screen(MergeForm(self.c, self.key))
+
+    async def delete(self, widget, **kw):
+        song = self.c.session.songs.get(self.key)
+        if song and await self.c.confirm("Delete Song", f"Remove '{song['title']}' from the session?"):
+            self.c.session.delete_songs([self.key])
+            self.c.songs_changed(f"Deleted '{song['title']}'.", screen="songs")
+
+
 class AlbumsScreen:
-    """Albums ranked by the average score of their songs."""
+    """Albums ranked by the average score of their songs. Tap one for options."""
 
     def __init__(self, controller):
         self.c = controller
-        self.rows = toga.Box(style=Pack(direction=COLUMN, gap=8))
+        self.rows = toga.Box(style=Pack(direction=COLUMN, gap=6))
         self.box = toga.Box(
             children=[
-                toga.Label("◉ Album Rankings", style=theme.heading(18)),
-                toga.ScrollContainer(content=self.rows, horizontal=False, style=Pack(flex=1)),
+                header("◉  Album Rankings", "Ranked by the average score of their songs"),
+                scroller(self.rows),
             ],
             style=theme.page(),
         )
@@ -109,48 +205,110 @@ class AlbumsScreen:
     def refresh(self):
         self.rows.clear()
         for rank, a in enumerate(self.c.session.album_stats(), start=1):
-            cover = toga.ImageView(style=Pack(width=60, height=60, background_color=theme.SURFACE_HI))
-            self.c.covers.show(cover, a["cover_url"])
-            color = theme.GOLD if rank <= len(theme.MEDALS) else theme.TEXT
-            info = toga.Box(
-                children=[
-                    toga.Label(theme.wrap(a["album"], 180, 15), style=theme.text(15, color)),
-                    toga.Label(
-                        theme.wrap(f"{a['artist']} · {a['count']} songs", 180, 12),
-                        style=theme.text(12, theme.MUTED),
+            self.rows.add(self._row(rank, a))
+
+    def _row(self, rank, a):
+        cover = toga.ImageView(style=Pack(width=60, height=60))
+        theme.skin(cover, fill=theme.SURFACE_HI, radius=8)
+        self.c.covers.show(cover, a["cover_url"])
+        color = rank_color(rank)
+        info = toga.Box(
+            children=[
+                toga.Label(theme.wrap(a["album"], 170, 15), style=theme.text(15, color, font_weight=BOLD)),
+                theme.muted(theme.wrap(f"{a['artist']} · {a['count']} songs", 170, 12), 12),
+            ],
+            style=Pack(direction=COLUMN, flex=1, gap=2),
+        )
+        score = toga.Box(
+            children=[
+                toga.Label(f"{a['avg']:.0f}", style=theme.heading(17, theme.GOLD, text_align=RIGHT)),
+                theme.muted("avg", 11, text_align=RIGHT),
+            ],
+            style=Pack(direction=COLUMN, width=48),
+        )
+        rank_text = toga.Label(
+            rank_label(rank), style=theme.text(14, rank_color(rank, theme.MUTED), font_weight=BOLD, width=40)
+        )
+        return tappable_row(
+            [rank_text, cover, info, score], lambda: self.c.show_screen(AlbumSheet(self.c, a, rank)), rank
+        )
+
+
+class AlbumSheet:
+    """One album: battle only its songs, or remove it."""
+
+    def __init__(self, controller, album, rank):
+        self.c = controller
+        self.album = album["album"]
+        cover = toga.ImageView(style=Pack(width=140, height=140))
+        theme.skin(cover, fill=theme.SURFACE_HI, radius=12)
+        controller.covers.show(cover, album["cover_url"])
+        color = rank_color(rank)
+        self.box = toga.Box(
+            children=[
+                theme.card(
+                    toga.Box(
+                        children=[
+                            cover,
+                            toga.Box(
+                                children=[
+                                    theme.corner_tag(f"RANK #{rank}", color),
+                                    toga.Label(
+                                        theme.wrap(album["album"], 170, 20),
+                                        style=theme.heading(20, theme.TEXT),
+                                    ),
+                                    theme.muted(theme.wrap(album["artist"], 170, 14), 14),
+                                ],
+                                style=Pack(direction=COLUMN, flex=1, gap=6),
+                            ),
+                        ],
+                        style=theme.row(gap=14),
                     ),
-                ],
-                style=Pack(direction=COLUMN, flex=1),
-            )
-            self.rows.add(
-                toga.Box(
-                    children=[
-                        toga.Label(rank_label(rank), style=theme.text(14, color, width=44)),
-                        cover,
-                        info,
-                        toga.Label(f"{a['avg']:.0f}", style=theme.text(15, theme.GOLD, text_align=RIGHT)),
-                    ],
-                    style=theme.row(gap=10, background_color=theme.SURFACE, margin=6),
-                )
-            )
+                    toga.Box(
+                        children=[
+                            stat(f"{album['avg']:.0f}", "AVG SCORE", theme.GOLD),
+                            stat(str(album["count"]), "SONGS"),
+                        ],
+                        style=theme.row(gap=8, margin=(8, 0, 0, 0)),
+                    ),
+                    padding=16,
+                    stroke=color if rank <= len(theme.MEDALS) else theme.BORDER,
+                ),
+                theme.pill("⚔  Battle this album", self.battle, "gold", 50),
+                theme.pill("✕  Delete album", self.delete, "danger", 48),
+                back_button(controller, "albums"),
+            ],
+            style=theme.page(),
+        )
+
+    def refresh(self):
+        pass
+
+    def battle(self, widget, **kw):
+        self.c.set_filter(self.album)
+        self.c.show("battle")
+
+    async def delete(self, widget, **kw):
+        count = sum(1 for s in self.c.session.songs.values() if s["album"] == self.album)
+        if await self.c.confirm("Delete Album", f"Delete all {count} songs of '{self.album}'?"):
+            removed = self.c.session.delete_album(self.album)
+            self.c.songs_changed(f"Deleted '{self.album}' ({removed} songs).", screen="albums")
 
 
-def _field(label, widget):
+def field(label, widget):
     return toga.Box(
-        children=[toga.Label(label, style=theme.text(13, theme.MUTED)), widget],
+        children=[theme.corner_tag(label.upper(), theme.MUTED, 10), widget],
         style=Pack(direction=COLUMN, gap=4),
     )
 
 
-def _form_buttons(ok_text, on_ok, on_cancel):
+def form_buttons(ok_text, on_ok, on_cancel):
     return toga.Box(
         children=[
-            theme.Button("Cancel", on_press=on_cancel, style=theme.button(flex=1)),
-            theme.Button(
-                ok_text, on_press=on_ok, style=theme.button(color=theme.GOLD, text_color=theme.BG, flex=1)
-            ),
+            theme.pill("Cancel", on_cancel, "ghost", 48, flex=1),
+            theme.pill(ok_text, on_ok, "gold", 48, flex=1),
         ],
-        style=theme.row(gap=8),
+        style=theme.row(gap=10),
     )
 
 
@@ -162,18 +320,22 @@ class AddSongForm:
         s = controller.session
         keys = s.get_filtered_keys()
         album = s.active_filter if s.active_filter != ALL_ALBUMS else ""
-        self.title = toga.TextInput(placeholder="Song title")
-        self.artist = toga.TextInput(value=s.songs[keys[0]]["artist"] if keys else "")
-        self.album = toga.TextInput(value=album, placeholder="Album (Year)")
-        self.year = toga.TextInput(placeholder="YYYY")
+        self.title = theme.text_input(placeholder="Song title")
+        self.artist = theme.text_input(value=s.songs[keys[0]]["artist"] if keys else "")
+        self.album = theme.text_input(value=album, placeholder="Album (Year)")
+        self.year = theme.text_input(placeholder="YYYY")
         self.box = toga.Box(
             children=[
-                toga.Label("Add a Song", style=theme.heading(18)),
-                _field("Title", self.title),
-                _field("Artist", self.artist),
-                _field("Album", self.album),
-                _field("Year", self.year),
-                _form_buttons("Add Song", self.submit, lambda w, **kw: controller.show("songs")),
+                header("＋  Add a Song", "For tracks MusicBrainz doesn't list"),
+                theme.card(
+                    field("Title", self.title),
+                    field("Artist", self.artist),
+                    field("Album", self.album),
+                    field("Year", self.year),
+                    padding=16,
+                    gap=14,
+                ),
+                form_buttons("Add Song", self.submit, lambda w, **kw: controller.show("songs")),
             ],
             style=theme.page(),
         )
@@ -207,22 +369,23 @@ class MergeForm:
         self.other = toga.Selection(
             items=[{"name": f"{s.songs[k]['title']} ({s.songs[k]['album']})", "key": k} for k in others],
             accessor="name",
+            style=Pack(color=theme.TEXT),
         )
-        self.new_title = toga.TextInput(value=song["title"])
+        device.tint(self.other, theme.MUTED)
+        self.new_title = theme.text_input(value=song["title"])
         self.box = toga.Box(
             children=[
-                toga.Label("Merge Songs", style=theme.heading(18)),
-                toga.Label(
-                    theme.wrap(
-                        f"Combine '{song['title']}' with another song. "
-                        "Scores are averaged and votes added up.",
-                        size=13,
-                    ),
-                    style=theme.text(13, theme.MUTED),
+                header(
+                    "⇄  Merge Songs",
+                    f"Combine '{song['title']}' with another song. Scores are averaged and votes added up.",
                 ),
-                _field("Merge with", self.other),
-                _field("Title of the merged song", self.new_title),
-                _form_buttons("Merge", self.submit, lambda w, **kw: controller.show("songs")),
+                theme.card(
+                    field("Merge with", self.other),
+                    field("Title of the merged song", self.new_title),
+                    padding=16,
+                    gap=14,
+                ),
+                form_buttons("Merge", self.submit, lambda w, **kw: controller.show("songs")),
             ],
             style=theme.page(),
         )
