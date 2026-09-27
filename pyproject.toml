@@ -66,9 +66,8 @@ icon = "build/icons/songclash"
 [tool.briefcase.app.songclash.android]
 requires = ["toga-android~=0.5.6"]
 base_theme = "Theme.MaterialComponents.DayNight.DarkActionBar"
-build_gradle_dependencies = [
-    "com.google.android.material:material:1.12.0",
-]
+# Leave build_gradle_dependencies unset: Briefcase's defaults include the
+# AndroidX libraries Toga's widgets need (DetailedList uses SwipeRefreshLayout).
 
 [tool.briefcase.app.songclash.windows]
 requires = ["toga-winforms~=0.5.6"]
